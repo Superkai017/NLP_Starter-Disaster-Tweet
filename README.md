@@ -6,6 +6,15 @@ A modular data science repository for classifying whether a given tweet is about
 
 ---
 
+## Architecture
+
+This project fine-tunes a Transformer encoder (e.g. BERT/DistilBERT) for **sequence classification**: the tweet text is tokenized, passed through the pre-trained encoder, and the pooled `[CLS]` representation is fed into a classification head to predict disaster vs. non-disaster.
+
+![BERT classification architecture](https://www.cse.chalmers.se/~richajo/nlp2019/l5/bert_class.png)
+*Diagram: BERT-based sequence classification architecture (source: [Chalmers NLP course, Richard Johansson](https://www.cse.chalmers.se/~richajo/nlp2019/l5/)).*
+
+---
+
 ## Project Structure
 
 ```
