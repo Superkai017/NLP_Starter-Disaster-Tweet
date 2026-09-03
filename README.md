@@ -18,51 +18,52 @@ This project fine-tunes a Transformer encoder (e.g. BERT/DistilBERT) for **seque
 ## Project Structure
 
 ```
-disaster-tweets-nlp/
-├── data/
-│   ├── raw/                   # Original, unmodified Kaggle CSV files
+NLP_Starter-Disaster-Tweet/
+├── DATA/
+│   ├── Raw/                        # Original, unmodified Kaggle CSVs
 │   │   ├── train.csv
-│   │   ├── test.csv
-│   │   └── sample_submission.csv
-│   └── processed/             # Preprocessed text feeds or train/val splits
+│   │   └── test.csv
+│   ├── Clean/                      # Null-filled + keyword-decoded (text still raw)
+│   ├── Processed/                  # Cleaned text + stratified split, per cleaning mode
+│   │   ├── train_lstm.csv
+│   │   ├── val_lstm.csv
+│   │   └── test_lstm.csv
+│   └── sample_submission.csv
 │
-├── notebooks/                  # Sequential experiment notebooks
-│   ├── 01_eda_and_cleaning.ipynb    # Data distribution, word frequency, text cleaning
-│   └── 02_kerasnlp_modeling.ipynb   # Model training, fine-tuning, and inference
+├── notebook/
+│   ├── eda.ipynb                   # Distributions, missing values, keyword signal
+│   └── text_preprocessing.ipynb    # Cleaning, dedup, label resolution, split
 │
-├── src/                        # Reusable Python source modules
-│   ├── __init__.py
-│   ├── text_cleaner.py         # Custom NLP preprocessing routines (Regex, URLs, Emojis)
-│   ├── dataset.py              # tf.data.Dataset creation and pipeline batching
-│   ├── model.py                # KerasNLP model architecture and presets initialization
-│   └── metrics.py              # Custom evaluation functions (F1-Score, Confusion Matrix)
+├── src/
+│   └── text_cleaner.py             # Shared cleaning: mojibake/HTML repair, two modes
 │
-├── models/                     # Saved weights, artifacts, and exported Keras models
-│   └── best_disaster_model.keras
-│
-├── submissions/                 # Formatted output CSV files for Kaggle submission
-│   └── submission.csv
-│
-├── .gitignore                   # Excludes data/, models/, and cache from git tracking
-├── requirements.txt             # Python dependency requirements
-└── README.md                    # Project overview and instructions
+├── brain.md                        # Running log of pipeline state and decisions
+├── CLAUDE.md                       # Guidance for Claude Code
+└── README.md
 ```
+
+### Not built yet
+
+`dataset.py`, `model.py`, `metrics.py`, `models/`, `submissions/` and `requirements.txt` are
+part of the target design below but do not exist yet. The example code further down this file
+describes that intended end state, not the current repository.
+
 
 ---
 
 ## Directory & File Descriptions
 
-* **`data/`**: Holds all dataset files. Raw files remain untouched in `raw/`, while transformed datasets are stored in `processed/`.
-* **`notebooks/`**: Houses step-by-step interactive Jupyter notebooks:
-  * `01_eda_and_cleaning.ipynb`: Exploratory Data Analysis (EDA), target class distribution checks, and missing value checks.
-  * `02_kerasnlp_modeling.ipynb`: End-to-end model training using pre-trained transformer presets, validation tracking, and submission file generation.
-* **`src/`**: Modular, importable Python code used across notebooks or stand-alone scripts:
-  * `text_cleaner.py`: Standardizes text by stripping broken URLs, HTML entities, and unnecessary whitespace.
-  * `dataset.py`: Converts Pandas DataFrames into optimized `tf.data.Dataset` streams with prefetching and batching.
-  * `model.py`: Wraps `keras_nlp.models.BertClassifier` initialization and optimizer compilation.
-  * `metrics.py`: Generates classification reports, macro/micro F1 scores, and confusion matrices.
-* **`models/`**: Checkpoint directory where `.keras` weight files are saved during training.
-* **`submissions/`**: Contains generated `submission.csv` files formatted with `id` and `target` columns for Kaggle evaluation.
+* **`DATA/`**: `Raw/` holds the untouched Kaggle files. `Clean/` holds the null-filled frames
+  (tweet text is still raw at that stage — the name is historical). `Processed/` holds the
+  fully cleaned, deduplicated, split data actually used for modelling.
+* **`notebook/`**:
+  * `eda.ipynb`: class balance, missing-value rates, `keyword` predictive power, `location`
+    cardinality, and a survey of the dataset's encoding corruption.
+  * `text_preprocessing.ipynb`: applies the shared cleaner to **both** train and test, resolves
+    duplicate label conflicts by majority vote, derives `MAXLEN`, and writes a stratified split.
+* **`src/text_cleaner.py`**: the single source of truth for preprocessing. Repairs mojibake and
+  HTML entities, strips URLs and @mentions, and exposes two presets — `mode="lstm"` (aggressive)
+  and `mode="transformer"` (light). Stdlib only; no `ftfy` dependency.
 
 ---
 
@@ -87,16 +88,16 @@ pip install -r requirements.txt
 Download the competition data from Kaggle and place the raw files here:
 
 ```
-data/raw/train.csv
-data/raw/test.csv
-data/raw/sample_submission.csv
+DATA/Raw/train.csv
+DATA/Raw/test.csv
+DATA/sample_submission.csv
 ```
 
 You can either download them manually from the [competition page](https://www.kaggle.com/competitions/nlp-getting-started/data), or use the Kaggle CLI:
 
 ```bash
-kaggle competitions download -c nlp-getting-started -p data/raw
-unzip data/raw/nlp-getting-started.zip -d data/raw
+kaggle competitions download -c nlp-getting-started -p DATA/Raw
+unzip DATA/Raw/nlp-getting-started.zip -d DATA/Raw
 ```
 
 ### 3. Run the Notebooks
@@ -107,8 +108,9 @@ Start Jupyter and work through the notebooks in order:
 jupyter notebook
 ```
 
-1. **`01_eda_and_cleaning.ipynb`** — explore class balance, inspect missing values, and clean raw tweet text.
-2. **`02_kerasnlp_modeling.ipynb`** — build the `tf.data` pipeline, fine-tune a KerasNLP transformer backbone, evaluate on a validation split, and generate `submissions/submission.csv`.
+1. **`notebook/eda.ipynb`** — class balance, missing values, keyword signal, encoding artifacts.
+2. **`notebook/text_preprocessing.ipynb`** — clean both frames, resolve label conflicts, split.
+3. *(not built yet)* modeling — tokenize on the training split only, then fine-tune and generate `submission.csv`.
 
 ### 4. Use the `src/` Modules Directly (Optional)
 
@@ -122,7 +124,7 @@ from src.model import build_model
 from src.metrics import evaluate_model
 
 # Load and clean data
-df = pd.read_csv("data/raw/train.csv")
+df = pd.read_csv("DATA/Raw/train.csv")
 df["text"] = df["text"].apply(clean_text)
 
 # Build train/val tf.data.Dataset pipelines
@@ -140,12 +142,12 @@ evaluate_model(model, val_ds)
 
 ## Generating a Kaggle Submission
 
-After training, run inference on `data/raw/test.csv` and format the output to match `sample_submission.csv`:
+After training, run inference on `DATA/Processed/test_<MODE>.csv` and format the output to match `sample_submission.csv`:
 
 ```python
 import pandas as pd
 
-test_df = pd.read_csv("data/raw/test.csv")
+test_df = pd.read_csv("DATA/Processed/test_lstm.csv")  # already cleaned
 test_df["text"] = test_df["text"].apply(clean_text)
 
 preds = model.predict(test_df["text"])
@@ -173,4 +175,4 @@ Key dependencies (see `requirements.txt` for the full pinned list):
 
 ## License
 
-This project is provided as a starter template for the Kaggle "NLP with Disaster Tweets" competition. Add your preferred license (e.g., MIT) here.
+See `LICENSE`.
